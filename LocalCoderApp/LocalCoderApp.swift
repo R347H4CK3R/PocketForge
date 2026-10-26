@@ -19,6 +19,7 @@ import UIKit
     var webDraft = ""
     var webPreviewReady = false
     var taskReport = ""
+    var agentOutput: URL?
     private var session: LanguageModelSession?
     func generateWebPreview() async {
         let request = prompt.trimmingCharacters(in:.whitespacesAndNewlines)
@@ -75,15 +76,65 @@ import UIKit
         } catch { self.error = "Native project generation failed: " + error.localizedDescription }
     }
     func routeRequest() {
-        let plan = ForgeTaskRouter.classify(prompt,attachments:attachments.items.map(\.name))
-        taskReport = plan.report
-        switch plan.kind {
-        case .generateNative:
-            Task { await generateNativeProject() }
+        Task { await runAgent() }
+    }
+    func runAgent() async {
+        let request = prompt.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !request.isEmpty && !busy else { error = "Describe a development task first."; return }
+        let files = attachments.items.map(\.name)
+        let fallback = ForgeTaskRouter.classify(request, attachments: files)
+        taskReport = "Agent: assessing request and available tools…"
+        var selected = fallback.kind
+        if SystemLanguageModel.default.isAvailable {
+            do {
+                let planner = LanguageModelSession(instructions: """
+                You are a development tool planner. Choose exactly one tool for this request:
+                WEB = create runnable HTML/CSS/JavaScript application;
+                NATIVE = generate editable SwiftUI source project;
+                INSPECT = inspect an imported iOS app or diagnose a crash;
+                ADVISE = research or explain a technical issue.
+                Reply with only WEB, NATIVE, INSPECT, or ADVISE. Never claim an unavailable capability.
+                """)
+                let decision = try await planner.respond(to:request+"\nAttached files: "+files.joined(separator:", "))
+                switch decision.content.trimmingCharacters(in:.whitespacesAndNewlines).uppercased() {
+                case "WEB": selected = .rebuildWeb
+                case "NATIVE": selected = .generateNative
+                case "INSPECT": selected = .inspectIPA
+                case "ADVISE": selected = .general
+                default: break
+                }
+            } catch { taskReport = "Model planning unavailable: "+error.localizedDescription+"\nUsing deterministic routing." }
+        }
+        switch selected {
         case .rebuildWeb:
-            Task { await generateWebPreview() }
-        default:
-            Task { await send() }
+            taskReport = "Selected: web app generation → validation → unsigned IPA packaging."
+            await generateWebPreview()
+            if webPreviewReady {
+                let builder = WebAppBuilder()
+                builder.appName = "ForgeGenerated"
+                builder.bundleID = "dev.pocketforge.generated."+UUID().uuidString.replacingOccurrences(of:"-",with:"").lowercased()
+                builder.html = webDraft
+                builder.exportIPA()
+                if let output = builder.output {
+                    agentOutput = output
+                    taskReport += "\nGenerated HTML; created unsigned IPA. Open Run temporary app to test the web UI. This is not a native gameplay port."
+                } else {
+                    taskReport += "\nPackaging failed: "+builder.status
+                }
+            } else { taskReport += "\nGeneration not completed. "+error }
+        case .generateNative:
+            taskReport = "Selected: native SwiftUI source generation → source validation → project ZIP."
+            await generateNativeProject()
+            if nativeDraftReady {
+                nativeProject.exportProject()
+                agentOutput = nativeProject.output
+                taskReport += "\nSwift source project exported. Native compiler/linker execution on iPhone is not yet verified."
+            } else { taskReport += "\nSource generation not completed. "+error }
+        case .inspectIPA, .diagnoseLog, .unsupportedNative:
+            taskReport = "Selected: native app analysis. Import the IPA and diagnostic log in Repair to inspect real binaries. Arbitrary native binary conversion cannot run via this chat alone."
+        case .general:
+            taskReport = "Selected: technical reasoning. Responding with analysis; no external code execution is available in this mode."
+            await send()
         }
     }
     func send() async {
@@ -154,6 +205,9 @@ struct MainScreen: View {
                     }.padding() }.scrollDismissesKeyboard(.interactively)
                     if !brain.taskReport.isEmpty {
                         Text(brain.taskReport).font(.system(.caption,design:.monospaced)).textSelection(.enabled).padding(.horizontal)
+                    }
+                    if let product = brain.agentOutput {
+                        ShareLink(item:product) { Label("Export agent result",systemImage:"square.and.arrow.up") }.padding(.horizontal)
                     }
                     if brain.webPreviewReady {
                         HStack {
