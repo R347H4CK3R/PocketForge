@@ -21,12 +21,12 @@ enum NyxianCompilerProbe {
         let missing = names.filter { dlsym(handle, $0) == nil }
         guard missing.isEmpty else { return "Missing compiler entry points: " + missing.joined(separator: ", ") }
         let root = Bundle.main.bundleURL.appendingPathComponent("NyxianResources")
-        let locations = (sdkURL.map { [$0] } ?? []) + [
+        let locations = (sdkURL.map { [$0] } ?? []) + [Bundle.main.bundleURL.appendingPathComponent("BundledSDK/iPhoneOS.sdk", isDirectory: true)] + [
             root.appendingPathComponent("SDK", isDirectory: true),
             root.appendingPathComponent("SDKs", isDirectory: true),
             root.appendingPathComponent("iPhoneOS.sdk", isDirectory: true)
         ]
-        guard let sdkPath = locations.first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("SDKSettings.plist").path) }) else {
+        guard let sdkPath = locations.first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("SDKSettings.plist").path) && FileManager.default.fileExists(atPath: $0.appendingPathComponent("usr/include").path) }) else {
             return "Compiler ABI symbols verified. No unpacked iOS SDK with SDKSettings.plist was found; compilation blocked safely. The bundled resource pack is not automatically an initialized SDK."
         }
         guard let raw = dlsym(handle, "CCSDKCreateWithDirectoryURL") else { return "SDK initializer unavailable" }
