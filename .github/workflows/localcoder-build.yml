@@ -1,0 +1,60 @@
+name: PocketForge unsigned iOS build
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+jobs:
+  ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode* || true
+          sudo xcode-select -s /Applications/Xcode_26.1.1.app/Contents/Developer
+          xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Compile WebShell template
+        run: xcodebuild -project PocketForge.xcodeproj -scheme WebShell -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath shellbuild CODE_SIGNING_ALLOWED=NO build
+      - name: Bundle executable template
+        run: |
+          mkdir -p temp/Payload
+          cp -R shellbuild/Build/Products/Release-iphoneos/WebShell.app temp/Payload/OfflineApp.app
+          cd temp && zip -q -r ../LocalCoderApp/OfflineTemplate.zip Payload
+      - name: Regenerate project with template
+        run: xcodegen generate
+      - name: Compile app
+        run: xcodebuild -project PocketForge.xcodeproj -scheme PocketForge -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Bundle Nyxian prebuilt compiler frameworks
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 -o /tmp/Nyxian.ipa https://github.com/emexlab/Nyxian/releases/download/0.11.4/Nyxian.ipa
+          mkdir -p /tmp/nyxian-release
+          unzip -q /tmp/Nyxian.ipa -d /tmp/nyxian-release
+          SOURCE=/tmp/nyxian-release/Payload/Nyxian.app
+          DEST=build/Build/Products/Release-iphoneos/PocketForge.app
+          mkdir -p "$DEST/Frameworks" "$DEST/NyxianResources"
+          for fw in CoreCompiler MobileDevelopmentKit OpenSSL; do
+            cp -R "$SOURCE/Frameworks/$fw.framework" "$DEST/Frameworks/"
+          done
+          cp -R "$SOURCE/Shared/." "$DEST/NyxianResources/"
+          test -s "$DEST/Frameworks/CoreCompiler.framework/CoreCompiler"
+          test -s "$DEST/Frameworks/MobileDevelopmentKit.framework/MobileDevelopmentKit"
+          otool -L "$DEST/Frameworks/CoreCompiler.framework/CoreCompiler" > /tmp/compiler-dependencies.txt
+          file "$DEST/Frameworks/CoreCompiler.framework/CoreCompiler"
+          du -sh "$DEST/Frameworks" "$DEST/NyxianResources"
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/Build/Products/Release-iphoneos/PocketForge.app dist/Payload/
+          cd dist && zip -q -r PocketForge-unsigned.ipa Payload
+          unzip -t PocketForge-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PocketForge-unsigned-IPA
+          path: dist/PocketForge-unsigned.ipa
+          if-no-files-found: error
