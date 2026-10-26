@@ -187,7 +187,8 @@ struct RepairView: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:12) {
                     Text("Crash & IPA Repair").font(.title2).bold()
-                    Text("Import an IPA, crash log, or both. Describe the issue when no log is available.").font(.footnote).foregroundStyle(.secondary)
+                    Text("1. Add an IPA or crash log. 2. Describe what went wrong. 3. Tap Diagnose & Repair. 4. Export the result if a supported repair succeeds.")
+                        .font(.subheadline).foregroundStyle(.secondary)
                     Menu {
                         Button("Add IPA or ZIP", systemImage:"archivebox") { picker = true }
                         Button("Add diagnostic log", systemImage:"doc.text") { picker = true }
@@ -223,7 +224,7 @@ struct RepairView: View {
                     Button("Search public source repositories") { Task { await model.discoverPublicSource() } }.buttonStyle(.bordered)
                     Text(model.repositoryDiscoveryReport).font(.system(.caption,design:.monospaced)).textSelection(.enabled)
                     Button("Analyze and recommend fix") { model.createRepairPlan() }.buttonStyle(.bordered)
-                    Button("Auto-diagnose, repair & export when possible") { model.automaticRepair() }.buttonStyle(.borderedProminent)
+                    Button("Diagnose & Repair") { model.automaticRepair() }.buttonStyle(.borderedProminent)
                     Text(model.automaticStatus).font(.caption).textSelection(.enabled)
                     Button("Analyze compiled binary evidence") { model.analyzeBinaryEvidence() }.buttonStyle(.bordered)
                     Text(model.evidenceStatus).font(.caption).textSelection(.enabled)
