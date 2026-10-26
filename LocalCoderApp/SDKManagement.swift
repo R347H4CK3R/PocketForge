@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor @Observable final class SDKWorkspace {
     var status = "Import an uncompressed iPhoneOS.sdk folder. An SDK is required before native code compilation."
     var sdkURL: URL?
+    var exportedReport: URL?
     func importSDK(_ input: URL) {
         let access = input.startAccessingSecurityScopedResource()
         defer { if access { input.stopAccessingSecurityScopedResource() } }
@@ -30,6 +31,15 @@ import SwiftUI
             status = "Imported SDK locally. \(NyxianCompilerProbe.inspect(sdkURL:target))"
         } catch { status = "SDK import failed: \(error.localizedDescription)" }
     }
+    func exportDiagnostics() {
+        recheck()
+        do {
+            let filename = FileManager.default.temporaryDirectory.appendingPathComponent("PocketForge-Native-Toolchain-"+UUID().uuidString+".txt")
+            let document = "PocketForge native toolchain diagnostic\n"+Date().description+"\n"+status+"\nNote: symbol and SDK checks are not proof of successful native compilation, linking or iPhone code execution."
+            try document.write(to:filename,atomically:true,encoding:.utf8)
+            exportedReport = filename
+        } catch { status = "Diagnostic export failed: "+error.localizedDescription }
+    }
     func recheck() {
         let root = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask).first!
         let target = root.appendingPathComponent("iPhoneOS.sdk")
@@ -45,6 +55,8 @@ struct SDKManagementView: View {
                 Section("Native SDK") {
                     Button("Import iPhoneOS.sdk folder") { choosing = true }
                     Button("Check compiler and SDK") { workspace.recheck() }
+                    Button("Export SDK diagnostic report") { workspace.exportDiagnostics() }
+                    if let report = workspace.exportedReport { ShareLink(item:report) { Label("Share SDK report",systemImage:"square.and.arrow.up") } }
                     Text(workspace.status).font(.footnote).textSelection(.enabled)
                 }
                 Section("Native build tests") {
