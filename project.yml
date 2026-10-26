@@ -1,0 +1,36 @@
+name: PocketForge
+options:
+  bundleIdPrefix: dev.pocketforge
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    from: 0.9.19
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: '26.0'
+    SWIFT_VERSION: '5.9'
+    TARGETED_DEVICE_FAMILY: '1'
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_CFBundleDisplayName: PocketForge
+targets:
+  PocketForge:
+    type: application
+    platform: iOS
+    sources: [LocalCoderApp]
+    dependencies:
+      - package: ZIPFoundation
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.pocketforge.studio
+        CODE_SIGNING_ALLOWED: NO
+
+  WebShell:
+    type: application
+    platform: iOS
+    sources: [WebShell]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.pocketforge.webshell
+        CODE_SIGNING_ALLOWED: NO
+        INFOPLIST_KEY_CFBundleDisplayName: OfflineApp
