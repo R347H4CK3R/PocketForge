@@ -16,6 +16,8 @@ import UniformTypeIdentifiers
     var reconstructedSource: URL?
     var reconstructionStatus = "No source reconstruction generated."
     var evidenceStatus = "No binary analysis performed."
+    var instructionReport: URL?
+    var instructionStatus = "Not analyzed"
     var automaticStatus = "Not run"
     var sourceDiscoveryReport = "No source search performed."
     var repositoryDiscoveryReport = "Public repository search not run."
@@ -112,6 +114,13 @@ import UniformTypeIdentifiers
             evidenceReport = try BinaryReconstruction.generateReport(ipa:archiveURL)
             evidenceStatus = "Extracted available metadata, resource inventory, and printable binary evidence. This is not original source code."
         } catch { evidenceStatus = "Binary analysis failed: " + error.localizedDescription }
+    }
+    func inspectInstructions() {
+        guard let archiveURL else { instructionStatus = "Choose an IPA first."; return }
+        do {
+            instructionReport = try NativeInstructionEvidence.export(from:archiveURL)
+            instructionStatus = "Instruction evidence extracted. It is not reconstructed original source."
+        } catch { instructionStatus = "Instruction analysis unavailable: "+error.localizedDescription }
     }
     func reconstructSource() {
         guard let archiveURL else { reconstructionStatus = "Import an IPA first."; return }
@@ -239,6 +248,7 @@ struct RepairView: View {
                         model.createRepairPlan()
                         model.discoverSource()
                         model.analyzeBinaryEvidence()
+                        model.inspectInstructions()
                     }.buttonStyle(.borderedProminent)
                     Text("Step 3 — Read your result").font(.headline)
                     Text(model.proposedFix.isEmpty ? "The diagnosis and next steps will appear below." : model.proposedFix)
@@ -252,6 +262,9 @@ struct RepairView: View {
                             Label(model.reconstructed ? "Save new starter app (not a repair)" : "Save repaired unsigned IPA",systemImage:"square.and.arrow.up")
                         }.buttonStyle(.borderedProminent)
                     }
+                    if let instruction = model.instructionReport {
+                        ShareLink(item:instruction) { Label("Save native instruction report",systemImage:"square.and.arrow.up") }
+                    }
                     if let report = model.evidenceReport {
                         ShareLink(item: report) { Label("Save diagnosis report",systemImage:"square.and.arrow.up") }
                     }
@@ -261,6 +274,8 @@ struct RepairView: View {
                             Text(model.sourceDiscoveryReport).font(.caption).textSelection(.enabled)
                             Button("Search public GitHub repositories") { Task { await model.discoverPublicSource() } }
                             Text(model.repositoryDiscoveryReport).font(.caption).textSelection(.enabled)
+                            Button("Inspect ARM instructions") { model.inspectInstructions() }
+                            Text(model.instructionStatus).font(.caption)
                             Button("Inspect executable evidence") { model.analyzeBinaryEvidence() }
                             Text(model.evidenceStatus).font(.caption).textSelection(.enabled)
                             Button("Generate editable starter source") { model.reconstructSource() }
