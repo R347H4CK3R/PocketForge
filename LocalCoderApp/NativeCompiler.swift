@@ -14,7 +14,11 @@ import UniformTypeIdentifiers
     var status = "Native code can be edited and exported offline. LocalCoder has no embedded Swift/Clang compiler."
     var output: URL?
     var compilerReport = "Native compilation is unavailable until an iPhoneOS SDK is installed and compiler/linker job execution is verified."
-    func checkNativeCompiler() { compilerReport = NyxianCompilerProbe.inspect() }
+    func checkNativeCompiler() {
+        let root = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask).first!
+        let sdk = root.appendingPathComponent("iPhoneOS.sdk")
+        compilerReport = NyxianCompilerProbe.inspect(sdkURL:FileManager.default.fileExists(atPath:sdk.path) ? sdk : nil)
+    }
     func resetTemplate() {
         switch language {
         case .swift:
