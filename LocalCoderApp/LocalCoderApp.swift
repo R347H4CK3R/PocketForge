@@ -200,6 +200,10 @@ struct MainScreen: View {
         TabView {
             NavigationStack {
                 VStack {
+                    VStack(alignment:.leading,spacing:5) {
+                        Text("What would you like to make?").font(.headline)
+                        Text("Describe an app, paste an error, or attach a file. Tap the hammer for automatic app creation.").font(.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal)
                     ScrollView { LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(brain.lines.indices, id: \.self) { index in Text(brain.lines[index]).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                     }.padding() }.scrollDismissesKeyboard(.interactively)
@@ -267,33 +271,32 @@ struct MainScreen: View {
                         })
                     }
                 }.navigationTitle("PocketForge AI")
-            }.tabItem { Label("AI Chat", systemImage: "bubble.left.and.bubble.right") }
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Diagnose an IPA offline").font(.title2).bold()
-                        Button("Import IPA or ZIP") { importFile = true }.buttonStyle(.borderedProminent)
-                        Text(inspector.report).font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
-                        ShareLink(item: inspector.report) { Label("Share diagnosis", systemImage: "square.and.arrow.up") }
-                    }.padding()
-                }.navigationTitle("IPA Inspector")
-                .sheet(isPresented: $importFile) {
-                    UnrestrictedFilePicker(onPick: { url in
-                        importFile = false
-                        inspector.inspect(url)
-                    }, onFailure: { message in
-                        importFile = false
-                        inspector.report = message
-                    })
-                }
-            }.tabItem { Label("Inspect", systemImage: "archivebox") }
+            }.tabItem { Label("Create", systemImage: "wand.and.stars") }
             RepairView().tabItem { Label("Repair", systemImage: "wrench.and.screwdriver") }
-            SourceEditorView().tabItem { Label("Source", systemImage: "chevron.left.forwardslash.chevron.right") }
-            NativeCompilerView().tabItem { Label("Native", systemImage: "curlybraces") }
-            SDKManagementView().tabItem { Label("SDK", systemImage: "externaldrive") }
-            WebAppBuilderView().tabItem { Label("Create App", systemImage: "hammer") }
-            BuildLocalView().tabItem { Label("Pack IPA", systemImage: "shippingbox") }
-            FreeToolsView().tabItem { Label("Tools", systemImage: "square.grid.2x2") }
+            WebAppBuilderView().tabItem { Label("Run & Build", systemImage: "play.rectangle") }
+            NavigationStack {
+                List {
+                    Section("How it works") {
+                        Text("Create an app with AI, repair an imported IPA, or edit and run a web app. Use the tools below for advanced tasks.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Section("Advanced tools") {
+                        NavigationLink { NativeCompilerView() } label: { Label("Native source",systemImage:"curlybraces") }
+                        NavigationLink { SDKManagementView() } label: { Label("Compiler setup",systemImage:"externaldrive") }
+                        NavigationLink { SourceEditorView() } label: { Label("Source editor",systemImage:"chevron.left.forwardslash.chevron.right") }
+                        NavigationLink { BuildLocalView() } label: { Label("Package IPA",systemImage:"shippingbox") }
+                        NavigationLink { FreeToolsView() } label: { Label("Developer tools",systemImage:"square.grid.2x2") }
+                    }
+                    Section("Inspect IPA") {
+                        Button("Import IPA or ZIP") { importFile = true }
+                        Text(inspector.report).font(.caption).textSelection(.enabled)
+                        ShareLink(item:inspector.report) { Label("Share inspection report",systemImage:"square.and.arrow.up") }
+                    }
+                }.navigationTitle("More")
+                .sheet(isPresented:$importFile) {
+                    UnrestrictedFilePicker(onPick:{url in importFile=false;inspector.inspect(url)},onFailure:{message in importFile=false;inspector.report=message})
+                }
+            }.tabItem { Label("More",systemImage:"ellipsis.circle") }
         }
     }
 }
