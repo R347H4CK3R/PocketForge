@@ -13,6 +13,8 @@ import UniformTypeIdentifiers
     var repairedIPA: URL?
     var reconstructed = false
     var evidenceReport: URL?
+    var reconstructedSource: URL?
+    var reconstructionStatus = "No source reconstruction generated."
     var evidenceStatus = "No binary analysis performed."
     var automaticStatus = "Not run"
     var sourceDiscoveryReport = "No source search performed."
@@ -110,6 +112,16 @@ import UniformTypeIdentifiers
             evidenceReport = try BinaryReconstruction.generateReport(ipa:archiveURL)
             evidenceStatus = "Extracted available metadata, resource inventory, and printable binary evidence. This is not original source code."
         } catch { evidenceStatus = "Binary analysis failed: " + error.localizedDescription }
+    }
+    func reconstructSource() {
+        guard let archiveURL else { reconstructionStatus = "Import an IPA first."; return }
+        do {
+            let (zip, report) = try IPAReconstructionProject.export(from: archiveURL)
+            reconstructedSource = zip
+            reconstructionStatus = "Editable source project created from metadata and evidence. This is not recovered original code.\n" + report
+        } catch {
+            reconstructionStatus = "Reconstruction failed: " + error.localizedDescription
+        }
     }
     func reconstructApp() {
         reconstructed = false
@@ -234,6 +246,11 @@ struct RepairView: View {
                     Text(model.evidenceStatus).font(.caption).textSelection(.enabled)
                     if let evidence = model.evidenceReport {
                         ShareLink(item:evidence) { Label("Export reconstruction evidence",systemImage:"square.and.arrow.up") }
+                    }
+                    Button("Generate editable reconstructed source") { model.reconstructSource() }.buttonStyle(.borderedProminent)
+                    Text(model.reconstructionStatus).font(.caption).textSelection(.enabled)
+                    if let project = model.reconstructedSource {
+                        ShareLink(item: project) { Label("Export reconstructed source ZIP", systemImage: "square.and.arrow.up") }
                     }
                     Button("Create new app when source is unavailable") { model.reconstructApp() }.buttonStyle(.bordered)
                     if model.reconstructed { Text("Replacement shell only; original app functions are not automatically recovered.").font(.caption).foregroundStyle(.orange) }
