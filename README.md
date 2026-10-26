@@ -42,6 +42,14 @@ Generate and export Swift/Objective-C source archives. There is no verified nati
 ### Privacy and file handling
 Offline operations remain on the device. Public GitHub search communicates search terms to GitHub. Imported IPA and log files may be copied into app temporary storage while being processed. Verify sensitive files before sharing generated diagnostics.
 
+## Optional SDK bundling
+
+PocketForge detects an SDK at `PocketForge.app/BundledSDK/iPhoneOS.sdk`, or an SDK imported through the SDK tab into its application-support directory. The CI workflow optionally packages `SDKBundle/iPhoneOS.sdk` if present when the workflow runs, after verifying `SDKSettings.plist` and `usr/include`.
+
+**Licensing:** Do not commit, upload, or redistribute Apple's proprietary Xcode/iPhoneOS SDK through this public repository or release unless you have explicit rights to do so. By default the public PocketForge IPA does **not** contain the Apple iPhoneOS SDK. Nyxian's compiler frameworks and resources are a separate component and are not proof that its SDK is present. The SDK importer is still available.
+
+SDK detection and initialization checks are not native compilation tests. A functional Swift or Objective-C build requires correctly configured compiler and linker jobs and device validation.
+
 ## Important limitations
 - No general-purpose, validated native executable runner within PocketForge.
 - No guaranteed on-device native Swift / Objective-C compilation or arbitrary native IPA rebuilding.
