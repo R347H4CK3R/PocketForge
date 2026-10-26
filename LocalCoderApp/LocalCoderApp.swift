@@ -18,6 +18,7 @@ import UIKit
     var nativeDraftReady = false
     var webDraft = ""
     var webPreviewReady = false
+    var taskReport = ""
     private var session: LanguageModelSession?
     func generateWebPreview() async {
         let request = prompt.trimmingCharacters(in:.whitespacesAndNewlines)
@@ -72,6 +73,18 @@ import UIKit
             lines.append("AI: Generated editable native SwiftUI app source. Export project ZIP to build using a verified toolchain. No executable has been compiled.")
             error = ""
         } catch { self.error = "Native project generation failed: " + error.localizedDescription }
+    }
+    func routeRequest() {
+        let plan = ForgeTaskRouter.classify(prompt,attachments:attachments.items.map(\.name))
+        taskReport = plan.report
+        switch plan.kind {
+        case .generateNative:
+            Task { await generateNativeProject() }
+        case .rebuildWeb:
+            Task { await generateWebPreview() }
+        default:
+            Task { await send() }
+        }
     }
     func send() async {
         let value = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -139,6 +152,9 @@ struct MainScreen: View {
                     ScrollView { LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(brain.lines.indices, id: \.self) { index in Text(brain.lines[index]).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                     }.padding() }.scrollDismissesKeyboard(.interactively)
+                    if !brain.taskReport.isEmpty {
+                        Text(brain.taskReport).font(.system(.caption,design:.monospaced)).textSelection(.enabled).padding(.horizontal)
+                    }
                     if brain.webPreviewReady {
                         HStack {
                             Button("Run temporary app") { showingChatPreview = true }.buttonStyle(.borderedProminent)
@@ -180,6 +196,7 @@ struct MainScreen: View {
                         TextField("Describe an app or paste an error", text: $brain.prompt, axis: .vertical)
                         Button("Send") { Task { await brain.send() } }.disabled(brain.busy)
                         Menu {
+                            Button("Auto plan & execute",systemImage:"wand.and.stars") { brain.routeRequest() }
                             Button("Generate runnable web app",systemImage:"play.rectangle") { Task { await brain.generateWebPreview() } }
                             Button("Generate native SwiftUI source",systemImage:"curlybraces") { Task { await brain.generateNativeProject() } }
                             Button("Check native compiler",systemImage:"checkmark.shield") { brain.nativeProject.checkNativeCompiler() }
