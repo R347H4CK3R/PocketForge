@@ -202,15 +202,15 @@ struct RepairView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment:.leading,spacing:12) {
-                    Text("Crash & IPA Repair").font(.title2).bold()
-                    Text("1. Add an IPA or crash log. 2. Describe what went wrong. 3. Tap Diagnose & Repair. 4. Export the result if a supported repair succeeds.")
+                    Text("Fix or investigate an app").font(.title2).bold()
+                    Text("Step 1 — Attach your app (IPA) and any crash log. Step 2 — Describe what happened. Step 3 — Check the diagnosis. Step 4 — Save a repair only if one was actually made.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Menu {
                         Button("Add IPA or ZIP", systemImage:"archivebox") { picker = true }
                         Button("Add diagnostic log", systemImage:"doc.text") { picker = true }
                         Button("Add source or other file", systemImage:"folder") { picker = true }
                     } label: {
-                        Label("Add attachment", systemImage:"plus.circle.fill")
+                        Label("Step 1 — Add a file", systemImage:"plus.circle.fill")
                     }.buttonStyle(.borderedProminent)
                     if !model.ipaName.isEmpty || !model.logName.isEmpty {
                         ScrollView(.horizontal) {
@@ -234,29 +234,46 @@ struct RepairView: View {
                     } else {
                         Text("No attachments selected").font(.caption).foregroundStyle(.secondary)
                     }
-                    TextField("What happened?",text:$model.issue,axis:.vertical).lineLimit(2...5).textFieldStyle(.roundedBorder)
-                    Button("Find source automatically") { model.discoverSource() }.buttonStyle(.bordered)
-                    Text(model.sourceDiscoveryReport).font(.system(.caption,design:.monospaced)).textSelection(.enabled)
-                    Button("Search public source repositories") { Task { await model.discoverPublicSource() } }.buttonStyle(.bordered)
-                    Text(model.repositoryDiscoveryReport).font(.system(.caption,design:.monospaced)).textSelection(.enabled)
-                    Button("Analyze and recommend fix") { model.createRepairPlan() }.buttonStyle(.bordered)
-                    Button("Diagnose & Repair") { model.automaticRepair() }.buttonStyle(.borderedProminent)
-                    Text(model.automaticStatus).font(.caption).textSelection(.enabled)
-                    Button("Analyze compiled binary evidence") { model.analyzeBinaryEvidence() }.buttonStyle(.bordered)
-                    Text(model.evidenceStatus).font(.caption).textSelection(.enabled)
-                    if let evidence = model.evidenceReport {
-                        ShareLink(item:evidence) { Label("Export reconstruction evidence",systemImage:"square.and.arrow.up") }
+                    TextField("Step 2 — What is wrong with the app?",text:$model.issue,axis:.vertical).lineLimit(2...5).textFieldStyle(.roundedBorder)
+                    Button("Check my app and explain the problem") {
+                        model.createRepairPlan()
+                        model.discoverSource()
+                        model.analyzeBinaryEvidence()
+                    }.buttonStyle(.borderedProminent)
+                    Text("Step 3 — Read your result").font(.headline)
+                    Text(model.proposedFix.isEmpty ? "The diagnosis and next steps will appear below." : model.proposedFix)
+                        .font(.subheadline).textSelection(.enabled)
+                    if !model.ipaName.isEmpty {
+                        Button("Try a supported repair") { model.automaticRepair() }.buttonStyle(.bordered)
+                        Text(model.automaticStatus).font(.caption).textSelection(.enabled)
                     }
-                    Button("Generate editable reconstructed source") { model.reconstructSource() }.buttonStyle(.borderedProminent)
-                    Text(model.reconstructionStatus).font(.caption).textSelection(.enabled)
-                    if let project = model.reconstructedSource {
-                        ShareLink(item: project) { Label("Export reconstructed source ZIP", systemImage: "square.and.arrow.up") }
-                    }
-                    Button("Create new app when source is unavailable") { model.reconstructApp() }.buttonStyle(.bordered)
-                    if model.reconstructed { Text("Replacement shell only; original app functions are not automatically recovered.").font(.caption).foregroundStyle(.orange) }
-                    Button("Repair missing app display name & rebuild unsigned IPA") { model.repairSupportedIssue() }.buttonStyle(.bordered)
                     if let repaired = model.repairedIPA {
-                        ShareLink(item: repaired) { Label(model.reconstructed ? "Export replacement starter IPA" : "Export repaired unsigned IPA",systemImage:"square.and.arrow.up") }
+                        ShareLink(item:repaired) {
+                            Label(model.reconstructed ? "Save new starter app (not a repair)" : "Save repaired unsigned IPA",systemImage:"square.and.arrow.up")
+                        }.buttonStyle(.borderedProminent)
+                    }
+                    if let report = model.evidenceReport {
+                        ShareLink(item: report) { Label("Save diagnosis report",systemImage:"square.and.arrow.up") }
+                    }
+                    DisclosureGroup("Advanced options") {
+                        VStack(alignment:.leading,spacing:12) {
+                            Button("Find original source files") { model.discoverSource() }
+                            Text(model.sourceDiscoveryReport).font(.caption).textSelection(.enabled)
+                            Button("Search public GitHub repositories") { Task { await model.discoverPublicSource() } }
+                            Text(model.repositoryDiscoveryReport).font(.caption).textSelection(.enabled)
+                            Button("Inspect executable evidence") { model.analyzeBinaryEvidence() }
+                            Text(model.evidenceStatus).font(.caption).textSelection(.enabled)
+                            Button("Generate editable starter source") { model.reconstructSource() }
+                            Text(model.reconstructionStatus).font(.caption).textSelection(.enabled)
+                            if let source = model.reconstructedSource {
+                                ShareLink(item:source) { Label("Save starter source ZIP",systemImage:"square.and.arrow.up") }
+                            }
+                            Button("Create separate starter app") { model.reconstructApp() }
+                            Text("A starter app is not a repaired copy of the original game.")
+                                .font(.caption).foregroundStyle(.orange)
+                            Button("Repair missing app display name only") { model.repairSupportedIssue() }
+                        }
+                        .buttonStyle(.bordered)
                     }
                     Text("Findings").font(.headline)
                     Text(model.findings).font(.system(.caption,design:.monospaced)).textSelection(.enabled)
