@@ -54,12 +54,41 @@ enum SourceDiscovery {
             guard let json = try JSONSerialization.jsonObject(with:data) as? [String:Any],
                   let results = json["items"] as? [[String:Any]] else { return "Unexpected repository search response." }
             guard !results.isEmpty else { return "No matching public GitHub repository found. Private or local source projects cannot be discovered without access." }
-            let entries = results.compactMap { item -> String? in
+            var evaluations: [(score:Int,description:String)] = []
+            for item in results.prefix(5) {
                 guard let full = item["full_name"] as? String,
-                      let url = item["html_url"] as? String else { return nil }
-                return full+" — "+url
+                      let html = item["html_url"] as? String,
+                      let owner = item["owner"] as? [String:Any],
+                      let ownerName = owner["login"] as? String,
+                      let repoName = item["name"] as? String else { continue }
+                let language = item["language"] as? String ?? "unknown"
+                let license = (item["license"] as? [String:Any])?["spdx_id"] as? String ?? "unspecified"
+                let description = item["description"] as? String ?? ""
+                var score = 0
+                if repoName.lowercased() == queryTerm.lowercased() { score += 2 }
+                if ["Swift","Objective-C","C","C++"].contains(language) { score += 2 }
+                if description.localizedCaseInsensitiveContains("ios") || description.localizedCaseInsensitiveContains("iphone") { score += 1 }
+                var evidence = "Repository contents unavailable"
+                if let url = URL(string:"https://api.github.com/repos/\\(ownerName)/\\(repoName)/contents") {
+                    var detail = URLRequest(url:url)
+                    detail.setValue("application/vnd.github+json",forHTTPHeaderField:"Accept")
+                    detail.setValue("PocketForge/1.0",forHTTPHeaderField:"User-Agent")
+                    if let (contents,response) = try? await URLSession.shared.data(for:detail),
+                       let http = response as? HTTPURLResponse, http.statusCode == 200,
+                       let files = try? JSONSerialization.jsonObject(with:contents) as? [[String:Any]] {
+                        let names = files.compactMap { $0["name"] as? String }
+                        let project = names.filter { $0.hasSuffix(".xcodeproj") || $0.hasSuffix(".xcworkspace") || $0 == "Package.swift" || $0 == "project.yml" }
+                        if !project.isEmpty { score += 3 }
+                        evidence = project.isEmpty ? "No native project manifest at repository root" : "Native project: "+project.joined(separator:", ")
+                    }
+                }
+                evaluations.append((score,"\\(full) — \\(html)\\nLanguage: \\(language); license: \\(license); relevance: \\(score)/8\\n\\(evidence)"))
             }
-            return "Unverified public source candidates for \(queryTerm):\n"+entries.joined(separator:"\n")+"\nThese are name matches only, NOT authenticated source for this IPA. Confirm bundle ID, revision, and binary identifiers before patching."
+            evaluations.sort { $0.score > $1.score }
+            return "Potential source candidates for \\(queryTerm):\\n\\n"+
+                evaluations.map(\\.description).joined(separator:"\\n\\n")+
+                "\\n\\nThese are unverified candidates. Similarity is not proof of matching source. Check app identity, exact revision, permissions and asset licenses before reuse. Never automatically overwrite a native app with unrelated code."
+
         } catch {
             return "Repository lookup failed: "+error.localizedDescription
         }
