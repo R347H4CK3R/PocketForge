@@ -11,16 +11,16 @@ import SwiftUI
         defer { if access { input.stopAccessingSecurityScopedResource() } }
         do {
             let fm = FileManager.default
-            guard fm.fileExists(atPath: input.appendingPathComponent("SDKSettings.plist").path),
+            guard ["SDKSettings.plist", "SDKSettings.json"].contains(where: { fm.fileExists(atPath: input.appendingPathComponent($0).path) }),
                   fm.fileExists(atPath: input.appendingPathComponent("usr/include").path) else {
-                status = "Rejected: this folder lacks SDKSettings.plist or usr/include."
+                status = "Rejected: this folder lacks SDKSettings.json or SDKSettings.plist, or usr/include."
                 return
             }
             let root = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             let target = root.appendingPathComponent("iPhoneOS.sdk",isDirectory:true)
             let staging = root.appendingPathComponent("SDK-staging-"+UUID().uuidString,isDirectory:true)
             try fm.copyItem(at:input,to:staging)
-            guard fm.fileExists(atPath:staging.appendingPathComponent("SDKSettings.plist").path) else {
+            guard ["SDKSettings.plist", "SDKSettings.json"].contains(where: { fm.fileExists(atPath: staging.appendingPathComponent($0).path) }) else {
                 try? fm.removeItem(at:staging)
                 status = "SDK copy could not be verified."
                 return
@@ -60,7 +60,7 @@ struct SDKManagementView: View {
                     Text(workspace.status).font(.footnote).textSelection(.enabled)
                 }
                 Section("Native build tests") {
-                    Text("Swift and Objective-C compilation/linking are unavailable until the compiler is initialized and its build jobs are implemented and tested. No successful native build is claimed.")
+                    Text("The native source editor offers an experimental compiler and linker. Import an SDK first. A successful device build and installation have not yet been verified.")
                         .font(.footnote)
                 }
             }
