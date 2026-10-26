@@ -4,7 +4,7 @@ import ZIPFoundation
 /// Builds an editable reconstruction starting point from an IPA's available evidence.
 /// Does not decompile or reproduce the original program's logic.
 enum IPAReconstructionProject {
-    static func export(from ipa: URL) throws -> (URL, String) {
+    static func export(from ipa: URL, generatedSource: String? = nil, evidenceURL: URL? = nil) throws -> (URL, String) {
         let fm = FileManager.default
         let archive = try Archive(url: ipa, accessMode: .read)
         let files = Array(archive)
@@ -26,7 +26,7 @@ enum IPAReconstructionProject {
         let executable = (plist["CFBundleExecutable"] as? String) ?? "unknown"
         let source = files.filter {
             let p = $0.path.lowercased()
-            return [".swift", ".m", ".mm", ".c", ".cpp"].contains(where: p.hasSuffix)
+            return $0.type == .file && [".swift", ".m", ".mm", ".c", ".cpp", ".h"].contains(where: p.hasSuffix)
         }
         let evidence = files.filter {
             let p = $0.path.lowercased()
@@ -45,6 +45,34 @@ enum IPAReconstructionProject {
         defer { try? fm.removeItem(at: root) }
         let project = root.appendingPathComponent("ReconstructedApp", isDirectory: true)
         try fm.createDirectory(at: project, withIntermediateDirectories: true)
+        // Preserve bounded source candidates separately; never use an archive path as an
+        // output path. Original paths are recorded in the manifest, not trusted as paths.
+        let recovered = project.appendingPathComponent("IPA_Source_Candidates", isDirectory: true)
+        var recoveredPaths = [String]()
+        var recoveredBytes: UInt64 = 0
+        for entry in source {
+            guard recoveredPaths.count < 100, entry.uncompressedSize <= 1_000_000,
+                  recoveredBytes + entry.uncompressedSize <= 10_000_000 else { continue }
+            if recoveredPaths.isEmpty { try fm.createDirectory(at: recovered, withIntermediateDirectories: true) }
+            let ext = (entry.path as NSString).pathExtension.lowercased()
+            let filename = String(format: "%04d", recoveredPaths.count + 1) + "." + ext
+            var contents = Data()
+            _ = try archive.extract(entry, consumer: { chunk in
+                guard contents.count + chunk.count <= 1_000_000 else {
+                    throw NSError(domain: "PocketForge", code: 5, userInfo: [NSLocalizedDescriptionKey: "Source candidate exceeds extraction limit."])
+                }
+                contents.append(chunk)
+            })
+            try contents.write(to: recovered.appendingPathComponent(filename), options: .atomic)
+            recoveredBytes += UInt64(contents.count)
+            recoveredPaths.append(filename + " <- " + entry.path.replacingOccurrences(of: "\n", with: " "))
+        }
+        if !recoveredPaths.isEmpty {
+            try recoveredPaths.joined(separator: "\n").write(to: project.appendingPathComponent("SOURCE_CANDIDATES.txt"), atomically: true, encoding: .utf8)
+        }
+        if let evidenceURL {
+            try fm.copyItem(at: evidenceURL, to: project.appendingPathComponent("IPA_EVIDENCE.txt"))
+        }
         let safeTitle = originalName.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: " ")
@@ -77,7 +105,7 @@ enum IPAReconstructionProject {
             }
         }
         """
-        try swift.write(to: project.appendingPathComponent("ReconstructedApp.swift"), atomically: true, encoding: .utf8)
+        try (generatedSource ?? swift).write(to: project.appendingPathComponent("ReconstructedApp.swift"), atomically: true, encoding: .utf8)
         let resources = evidence.prefix(5000).map(\.path).joined(separator: "\n")
         try resources.write(to: project.appendingPathComponent("RESOURCE_INVENTORY.txt"), atomically: true, encoding: .utf8)
         let report = """
@@ -86,11 +114,11 @@ enum IPAReconstructionProject {
         Bundle identifier: \(bundleID)
         Executable: \(executable)
         Architecture: \(architecture)
-        Source files packaged: \(source.count)
+        Source candidates found: \(source.count)\n        Source candidates extracted separately: \(recoveredPaths.count) (maximum 100 files, 1 MB each, 10 MB total)\n        Candidate files are not verified to match the executable.
         Resource candidates: \(evidence.count)
 
-        Output: editable SwiftUI starter application and resource inventory.
-        This does not recover the original algorithms, game logic, engine or full UI.
+        Output: \(generatedSource == nil ? "metadata-based starter source" : "AI-generated source draft based on limited IPA evidence") and resource inventory.
+        AI-generated content is inferred and may be incorrect or incomplete; it is not recovered original source.\n        This does not recover the original algorithms, game logic, engine or full UI.
         Before native execution, rebuild with a verified ARM64 compiler, resolve dependencies,
         and test on the target device. Do not assume rights to redistribute bundled assets.
         """
