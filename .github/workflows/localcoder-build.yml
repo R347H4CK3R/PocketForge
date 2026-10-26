@@ -64,6 +64,18 @@ jobs:
           else
             echo "No authorized SDKBundle/iPhoneOS.sdk supplied; IPA will not contain an Apple SDK."
           fi
+      - name: Bundle iPhoneOS SDK for offline compiler use
+        run: |
+          set -euo pipefail
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          DEST="build/Build/Products/Release-iphoneos/PocketForge.app/NyxianResources/iPhoneOS.sdk"
+          test -f "$SDK/SDKSettings.plist"
+          test -d "$SDK/usr/include"
+          mkdir -p "$(dirname "$DEST")"
+          ditto "$SDK" "$DEST"
+          test -f "$DEST/SDKSettings.plist"
+          test -d "$DEST/usr/include"
+          du -sh "$DEST"
       - name: Package unsigned IPA
         run: |
           mkdir -p dist/Payload
