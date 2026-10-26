@@ -26,11 +26,11 @@ enum NyxianCompilerProbe {
             root.appendingPathComponent("SDKs", isDirectory: true),
             root.appendingPathComponent("iPhoneOS.sdk", isDirectory: true)
         ]
-        guard let sdkPath = locations.first(where: {
+        guard let sdkPath = locations.first(where: { candidate in
             let metadata = ["SDKSettings.json", "SDKSettings.plist"].contains { file in
-                FileManager.default.fileExists(atPath: $0.appendingPathComponent(file).path)
+                FileManager.default.fileExists(atPath: candidate.appendingPathComponent(file).path)
             }
-            return metadata && FileManager.default.fileExists(atPath: $0.appendingPathComponent("usr/include").path)
+            return metadata && FileManager.default.fileExists(atPath: candidate.appendingPathComponent("usr/include").path)
         }) else { return "No unpacked iPhoneOS SDK found. Import a folder with SDK metadata and headers." }
         return "SDK folder located at " + sdkPath.lastPathComponent + ". Compiler symbols are present. Use the native source editor to attempt a build; device compilation is not yet verified."
     }
