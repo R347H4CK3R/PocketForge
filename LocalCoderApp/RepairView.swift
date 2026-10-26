@@ -184,7 +184,7 @@ import UniformTypeIdentifiers
             }
             // Do not publish a result for an IPA replaced while generation was running.
             guard self.archiveURL == archiveURL else { return }
-            let (zip, _) = try IPAReconstructionProject.export(from: archiveURL, generatedSource: code)
+            let (zip, _) = try IPAReconstructionProject.export(from: archiveURL, generatedSource: code, evidenceURL: evidenceURL)
             reconstructedSource = zip
             reconstructionStatus = "AI source draft created from limited IPA evidence. It is inferred, not original source, and has not been compiled or tested."
         } catch {
