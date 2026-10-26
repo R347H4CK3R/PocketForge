@@ -11,8 +11,10 @@ import UniformTypeIdentifiers
     var language: Language = .swift
     var projectName = "NewNativeApp"
     var source = "import SwiftUI\n@main struct NewNativeApp: App { var body: some Scene { WindowGroup { Text(\"Hello iPhone\") } } }"
-    var status = "Native code can be edited and exported offline. LocalCoder has no embedded Swift/Clang compiler."
+    var status = "Edit source, then try the experimental on-device compiler with an installed SDK."
     var output: URL?
+    var building = false
+    var builtIPA: URL?
     var compilerReport = "Native compilation is unavailable until an iPhoneOS SDK is installed and compiler/linker job execution is verified."
     func checkNativeCompiler() {
         let root = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask).first!
@@ -25,6 +27,26 @@ import UniformTypeIdentifiers
             source = "import SwiftUI\n@main struct NewNativeApp: App { var body: some Scene { WindowGroup { Text(\"Hello iPhone\") } } }"
         case .objectiveC:
             source = "#import <UIKit/UIKit.h>\n@interface AppDelegate : UIResponder <UIApplicationDelegate> @end\n@implementation AppDelegate @end\nint main(int argc, char **argv) { @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class])); } }"
+        }
+    }
+    func buildNative() {
+        guard !building else { return }
+        let sourceText = source, projectTitle = projectName, swift = language == .swift
+        building = true
+        builtIPA = nil
+        status = "Compiling and linking on device…"
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try PocketNativeBuild.build(source: sourceText, name: projectTitle, isSwift: swift) }
+            }.value
+            building = false
+            switch result {
+            case .success(let ipa):
+                builtIPA = ipa
+                status = "Compiler and linker returned success; an ARM64 executable was packaged. It is unsigned and has not been run."
+            case .failure(let error):
+                status = "Native build failed: " + error.localizedDescription
+            }
         }
     }
     func exportProject() {
@@ -74,6 +96,9 @@ struct NativeCompilerView: View {
                 Button("Check local native toolchain") { project.checkNativeCompiler() }.buttonStyle(.bordered)
                 Text(project.compilerReport).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 Text("To install an SDK, open the SDK tab under More. Project export is not compilation.").font(.caption).foregroundStyle(.secondary)
+                Button("Build unsigned native IPA") { project.buildNative() }.buttonStyle(.borderedProminent).disabled(project.building)
+                if project.building { ProgressView("Building on iPhone…") }
+                if let ipa = project.builtIPA { ShareLink(item: ipa) { Label("Save unsigned native IPA", systemImage: "square.and.arrow.up") } }
                 HStack {
                     Button("Export native project") { project.exportProject() }.buttonStyle(.borderedProminent)
                     if let output=project.output { ShareLink(item:output) { Label("Save", systemImage:"square.and.arrow.up") } }
