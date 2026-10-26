@@ -137,21 +137,25 @@ import UniformTypeIdentifiers
     func automaticRepair() {
         repairedIPA = nil
         reconstructed = false
-        automaticStatus = "Inspecting imported archive and diagnostic evidence…"
-        guard archiveURL != nil else {
-            automaticStatus = "Import an IPA to attempt automatic repair."
-            createRepairPlan()
+        guard let archiveURL else {
+            automaticStatus = "Import an IPA first."
             return
         }
         createRepairPlan()
         do {
-            let (result, message) = try SafeIPARepair.repairMissingDisplayName(archiveURL!)
-            repairedIPA = result
-            automaticStatus = "Validated metadata repair completed. " + message
+            evidenceReport = try BinaryReconstruction.generateReport(ipa: archiveURL)
+            evidenceStatus = "Compatibility evidence generated. Export it for detailed analysis."
         } catch {
-            let reason = error.localizedDescription
-            reconstructApp()
-            automaticStatus = "Original IPA could not be safely patched (" + reason + "). " + automaticStatus
+            evidenceStatus = "Executable inspection failed: " + error.localizedDescription
+        }
+        do {
+            let (result, message) = try SafeIPARepair.repairMissingDisplayName(archiveURL)
+            repairedIPA = result
+            automaticStatus = "A supported metadata issue was repaired: " + message
+        } catch {
+            automaticStatus = "No verified native repair available. The original IPA was not changed. " +
+                "If the executable lacks ARM64, a new ARM64 implementation or authorized source port is required. " +
+                "Review the binary evidence and repair recommendation below. No unrelated replacement app was generated."
         }
     }
     func repairSupportedIssue() {
