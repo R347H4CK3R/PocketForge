@@ -4,7 +4,7 @@ import ZIPFoundation
 /// Builds an editable reconstruction starting point from an IPA's available evidence.
 /// Does not decompile or reproduce the original program's logic.
 enum IPAReconstructionProject {
-    static func export(from ipa: URL) throws -> (URL, String) {
+    static func export(from ipa: URL, generatedSource: String? = nil) throws -> (URL, String) {
         let fm = FileManager.default
         let archive = try Archive(url: ipa, accessMode: .read)
         let files = Array(archive)
@@ -77,7 +77,7 @@ enum IPAReconstructionProject {
             }
         }
         """
-        try swift.write(to: project.appendingPathComponent("ReconstructedApp.swift"), atomically: true, encoding: .utf8)
+        try (generatedSource ?? swift).write(to: project.appendingPathComponent("ReconstructedApp.swift"), atomically: true, encoding: .utf8)
         let resources = evidence.prefix(5000).map(\.path).joined(separator: "\n")
         try resources.write(to: project.appendingPathComponent("RESOURCE_INVENTORY.txt"), atomically: true, encoding: .utf8)
         let report = """
@@ -89,8 +89,8 @@ enum IPAReconstructionProject {
         Source files packaged: \(source.count)
         Resource candidates: \(evidence.count)
 
-        Output: editable SwiftUI starter application and resource inventory.
-        This does not recover the original algorithms, game logic, engine or full UI.
+        Output: \(generatedSource == nil ? "metadata-based starter source" : "AI-generated source draft based on limited IPA evidence") and resource inventory.
+        AI-generated content is inferred and may be incorrect or incomplete; it is not recovered original source.\n        This does not recover the original algorithms, game logic, engine or full UI.
         Before native execution, rebuild with a verified ARM64 compiler, resolve dependencies,
         and test on the target device. Do not assume rights to redistribute bundled assets.
         """
