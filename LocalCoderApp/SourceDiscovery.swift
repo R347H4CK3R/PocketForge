@@ -85,9 +85,11 @@ enum SourceDiscovery {
                 evaluations.append((score,"\(full) — \(html)\nLanguage: \(language); license: \(license); relevance: \(score)/8\n\(evidence)"))
             }
             evaluations.sort { $0.score > $1.score }
-            return "Potential source candidates for \(queryTerm):\n\n"+
-                (evaluations.map { $0.description }).joined(separator:"\n\n")+
-                "\n\nThese are unverified candidates. Similarity is not proof of matching source. Check app identity, exact revision, permissions and asset licenses before reuse. Never automatically overwrite a native app with unrelated code."
+            return [
+                "Potential source candidates for \\(queryTerm):",
+                (evaluations.map { $0.description }).joined(separator: "\\n\\n"),
+                "These are unverified candidates. Similarity is not proof of matching source. Check app identity, revision, permissions and asset licenses before reuse."
+            ].joined(separator: "\\n\\n")
 
         } catch {
             return "Repository lookup failed: "+error.localizedDescription
