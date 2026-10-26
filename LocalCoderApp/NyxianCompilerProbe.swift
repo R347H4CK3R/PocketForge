@@ -7,7 +7,7 @@ import CoreFoundation
 enum NyxianCompilerProbe {
     typealias CreateSDK = @convention(c) (CFAllocator?, CFURL) -> UnsafeMutableRawPointer?
     typealias CopyVersion = @convention(c) (UnsafeMutableRawPointer) -> Unmanaged<CFString>?
-    typealias CreateJob = @convention(c) (CFAllocator?, UInt8, CFArray, CFArray, CFURL) -> UnsafeMutableRawPointer?
+    typealias CreateJob = @convention(c) (CFAllocator?, UInt8, CFArray) -> UnsafeMutableRawPointer?
     typealias ExecuteJob = @convention(c) (UnsafeMutableRawPointer, UnsafeMutablePointer<Unmanaged<CFArray>?>?, UnsafeMutablePointer<Unmanaged<CFString>?>?) -> Bool
 
     static func inspect(sdkURL: URL? = nil) -> String {
@@ -26,17 +26,12 @@ enum NyxianCompilerProbe {
             root.appendingPathComponent("SDKs", isDirectory: true),
             root.appendingPathComponent("iPhoneOS.sdk", isDirectory: true)
         ]
-        guard let sdkPath = locations.first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("SDKSettings.plist").path) && FileManager.default.fileExists(atPath: $0.appendingPathComponent("usr/include").path) }) else {
-            return "Compiler ABI symbols verified. No unpacked iOS SDK with SDKSettings.plist was found; compilation blocked safely. The bundled resource pack is not automatically an initialized SDK."
-        }
-        guard let raw = dlsym(handle, "CCSDKCreateWithDirectoryURL") else { return "SDK initializer unavailable" }
-        let create = unsafeBitCast(raw, to: CreateSDK.self)
-        guard let sdk = create(kCFAllocatorDefault, sdkPath as CFURL) else {
-            return "SDK directory found, but Nyxian rejected initialization."
-        }
-        defer { Unmanaged<AnyObject>.fromOpaque(sdk).release() }
-        let copy = unsafeBitCast(dlsym(handle, "CCSDKCopyVersion")!, to: CopyVersion.self)
-        let version = copy(sdk)?.takeRetainedValue() as String? ?? "unknown"
-        return "Nyxian SDK initialized: " + version + ". Compiler job APIs found. Native compilation/linking still requires a configured job and device smoke tests."
+        guard let sdkPath = locations.first(where: {
+            let metadata = ["SDKSettings.json", "SDKSettings.plist"].contains { file in
+                FileManager.default.fileExists(atPath: $0.appendingPathComponent(file).path)
+            }
+            return metadata && FileManager.default.fileExists(atPath: $0.appendingPathComponent("usr/include").path)
+        }) else { return "No unpacked iPhoneOS SDK found. Import a folder with SDK metadata and headers." }
+        return "SDK folder located at " + sdkPath.lastPathComponent + ". Compiler symbols are present. Use the native source editor to attempt a build; device compilation is not yet verified."
     }
 }
