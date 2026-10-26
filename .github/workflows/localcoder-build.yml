@@ -47,6 +47,23 @@ jobs:
           otool -L "$DEST/Frameworks/CoreCompiler.framework/CoreCompiler" > /tmp/compiler-dependencies.txt
           file "$DEST/Frameworks/CoreCompiler.framework/CoreCompiler"
           du -sh "$DEST/Frameworks" "$DEST/NyxianResources"
+      - name: Bundle optional authorized iOS SDK
+        run: |
+          set -euo pipefail
+          # The SDK is intentionally NOT committed or downloaded from unofficial sources.
+          # Only bundle material the repository owner is permitted to redistribute.
+          SDK_SOURCE="SDKBundle/iPhoneOS.sdk"
+          DEST="build/Build/Products/Release-iphoneos/PocketForge.app"
+          if [ -d "$SDK_SOURCE" ]; then
+            test -f "$SDK_SOURCE/SDKSettings.plist" || { echo "SDKSettings.plist missing"; exit 1; }
+            test -d "$SDK_SOURCE/usr/include" || { echo "SDK headers missing"; exit 1; }
+            mkdir -p "$DEST/BundledSDK"
+            ditto "$SDK_SOURCE" "$DEST/BundledSDK/iPhoneOS.sdk"
+            test -f "$DEST/BundledSDK/iPhoneOS.sdk/SDKSettings.plist"
+            echo "Authorized SDK bundle included and structurally checked"
+          else
+            echo "No authorized SDKBundle/iPhoneOS.sdk supplied; IPA will not contain an Apple SDK."
+          fi
       - name: Package unsigned IPA
         run: |
           mkdir -p dist/Payload
