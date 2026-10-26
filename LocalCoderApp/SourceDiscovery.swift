@@ -86,7 +86,7 @@ enum SourceDiscovery {
             }
             evaluations.sort { $0.score > $1.score }
             return "Potential source candidates for \\(queryTerm):\\n\\n"+
-                evaluations.map(\\.description).joined(separator:"\\n\\n")+
+                evaluations.map { $0.description }.joined(separator:"\\n\\n")+
                 "\\n\\nThese are unverified candidates. Similarity is not proof of matching source. Check app identity, exact revision, permissions and asset licenses before reuse. Never automatically overwrite a native app with unrelated code."
 
         } catch {
