@@ -9,6 +9,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Test packaging metadata validator
+        run: python3 -m unittest discover -s scripts -p 'test*.py'
       - name: Select Xcode 26
         run: |
           ls -d /Applications/Xcode* || true
@@ -19,7 +21,9 @@ jobs:
       - name: Generate project
         run: xcodegen generate
       - name: Compile WebShell template
-        run: xcodebuild -project PocketForge.xcodeproj -scheme WebShell -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath shellbuild CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project PocketForge.xcodeproj -scheme WebShell -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath shellbuild CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" build
+      - name: Validate WebShell metadata
+        run: python3 scripts/validate_app_metadata.py shellbuild/Build/Products/Release-iphoneos/WebShell.app/Info.plist dev.pocketforge.webshell
       - name: Bundle executable template
         run: |
           mkdir -p temp/Payload
@@ -28,7 +32,7 @@ jobs:
       - name: Regenerate project with template
         run: xcodegen generate
       - name: Compile app
-        run: xcodebuild -project PocketForge.xcodeproj -scheme PocketForge -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project PocketForge.xcodeproj -scheme PocketForge -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" build
       - name: Bundle Nyxian prebuilt compiler frameworks
         run: |
           set -euo pipefail
@@ -64,6 +68,8 @@ jobs:
           else
             echo "No authorized SDKBundle/iPhoneOS.sdk supplied; IPA will not contain an Apple SDK."
           fi
+      - name: Validate PocketForge metadata
+        run: python3 scripts/validate_app_metadata.py build/Build/Products/Release-iphoneos/PocketForge.app/Info.plist dev.pocketforge.studio
       - name: Package unsigned IPA
         run: |
           mkdir -p dist/Payload
